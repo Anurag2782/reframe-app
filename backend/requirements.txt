@@ -4,7 +4,14 @@ python-multipart==0.0.9
 Pillow==10.4.0
 opencv-python-headless==4.10.0.84
 numpy==1.26.4
+requests==2.32.3
 
 # Optional, only needed for the 'ai_extend' mode (background removal / segmentation).
-# The app falls back gracefully to blurred padding if this isn't installed.
+# The app falls back to mirror_extend (still no blur, just not subject-aware)
+# if this isn't installed. Note: the code explicitly pins the u2net model via
+# new_session("u2net") -- rembg's newer default model (Bria RMBG) carries a
+# non-commercial license, which isn't appropriate for a free/open tool.
 rembg==2.0.59
+
+# For true generative outpainting ("ai_generate" mode), see the separate,
+# much heavier requirements-generative.txt.

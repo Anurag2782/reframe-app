@@ -1,0 +1,21 @@
+# Optional, heavy dependencies for the "ai_generate" mode -- true generative
+# outpainting via Stable Diffusion inpainting. Install these only if you
+# want that feature:
+#
+#   pip install -r requirements-generative.txt
+#
+# Notes:
+# - The model itself (several GB) downloads automatically from Hugging Face
+#   the first time "ai_generate" runs, so the machine running the backend
+#   needs internet access at that point.
+# - A GPU (CUDA) is strongly recommended. CPU inference works but can take
+#   several minutes per image.
+# - Without these installed, "ai_generate" gracefully falls back to the
+#   same non-blurred mirror extension used by "ai_extend" -- the app keeps
+#   working either way.
+
+torch
+diffusers
+transformers
+accelerate
+safetensors

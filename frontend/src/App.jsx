@@ -8,7 +8,7 @@ import { uploadBatch } from "./lib/api";
 export default function App() {
   const [files, setFiles] = useState([]);
   const [aspect, setAspect] = useState("9:16");
-  const [mode, setMode] = useState("pad"); // "pad" keeps 100% of the frame; "crop" is opt-in
+  const [mode, setMode] = useState("ai_extend"); // sharp subject, no blur, no crop
   const [batchId, setBatchId] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);

@@ -11,6 +11,7 @@ Video reframing via FFmpeg. Strategy:
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import tempfile
 from dataclasses import dataclass
@@ -118,10 +119,78 @@ def reframe_video_pad(input_path: str, output_path: str, target_w: int, target_h
     subprocess.run(cmd, check=True, capture_output=True)
 
 
+def reframe_video_mirror_pad(input_path: str, output_path: str, target_w: int, target_h: int) -> None:
+    """Like reframe_video_pad, but extends the canvas by mirroring each
+    frame's edges outward instead of blurring a stretched copy -- no blur
+    anywhere. This is the video-side version of image_processing's
+    mirror_extend_image, used as the 'ai_extend' mode for video (full
+    subject segmentation per-frame is too slow without a GPU worker queue,
+    so this is the background-only, still-not-blurred fallback).
+
+    Processes every frame in Python/OpenCV rather than a single ffmpeg
+    filter graph, which is slower on long videos -- fine for short clips,
+    worth optimizing (e.g. sampling + interpolation) if you extend this to
+    long-form video.
+    """
+    cap = cv2.VideoCapture(input_path)
+    fps = cap.get(cv2.CAP_PROP_FPS) or 30
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+
+    silent_path = output_path + ".silent.mp4"
+    writer = None
+
+    try:
+        while True:
+            ok, frame = cap.read()
+            if not ok:
+                break
+            src_h, src_w = frame.shape[:2]
+            scale = min(target_w / src_w, target_h / src_h)
+            new_w, new_h = max(1, int(src_w * scale)), max(1, int(src_h * scale))
+            resized = cv2.resize(frame, (new_w, new_h), interpolation=cv2.INTER_LANCZOS4)
+
+            pad_w = target_w - new_w
+            pad_h = target_h - new_h
+            top, bottom = pad_h // 2, pad_h - pad_h // 2
+            left, right = pad_w // 2, pad_w - pad_w // 2
+            extended = cv2.copyMakeBorder(resized, top, bottom, left, right, cv2.BORDER_REFLECT_101)
+
+            if writer is None:
+                writer = cv2.VideoWriter(silent_path, fourcc, fps, (target_w, target_h))
+            writer.write(extended)
+    finally:
+        cap.release()
+        if writer is not None:
+            writer.release()
+
+    # Re-encode to h264 and re-attach the original audio track (OpenCV's
+    # VideoWriter doesn't carry audio).
+    cmd = [
+        "ffmpeg", "-y",
+        "-i", silent_path,
+        "-i", input_path,
+        "-map", "0:v:0", "-map", "1:a:0?",
+        "-c:v", "libx264", "-preset", "fast", "-crf", "20",
+        "-c:a", "aac", "-b:a", "128k",
+        "-shortest",
+        "-movflags", "+faststart",
+        output_path,
+    ]
+    subprocess.run(cmd, check=True, capture_output=True)
+    os.remove(silent_path)
+
+
 def reframe_video(input_path: str, output_path: str, target_w: int, target_h: int, mode: str) -> None:
     if mode == "crop":
         reframe_video_crop(input_path, output_path, target_w, target_h)
-    elif mode in ("pad", "ai_extend"):  # ai_extend not yet supported for video -> falls back to pad
+    elif mode == "pad":
         reframe_video_pad(input_path, output_path, target_w, target_h)
+    elif mode == "ai_extend":
+        reframe_video_mirror_pad(input_path, output_path, target_w, target_h)
+    elif mode == "ai_generate":
+        # True generative outpainting per-frame isn't practical on CPU;
+        # use the non-blurred mirror fallback until a GPU worker queue
+        # exists for this mode.
+        reframe_video_mirror_pad(input_path, output_path, target_w, target_h)
     else:
         raise ValueError(f"Unknown mode: {mode}")

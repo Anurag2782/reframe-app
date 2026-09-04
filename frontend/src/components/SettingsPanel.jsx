@@ -7,19 +7,24 @@ const ASPECTS = [
 
 const MODES = [
   {
+    id: "ai_extend",
+    label: "AI extend (recommended)",
+    desc: "Cuts the subject out, keeps it perfectly sharp, and extends the background by mirroring it outward — no blur. Images: fully subject-aware. Video: background-only extension (per-frame segmentation isn't fast enough yet).",
+  },
+  {
+    id: "ai_generate",
+    label: "AI generate",
+    desc: "Uses a generative AI model to paint in genuinely new background detail for the extended area, instead of mirroring or blurring. Images only, much slower, needs optional extra dependencies installed on the backend.",
+  },
+  {
     id: "pad",
-    label: "Blur fill (recommended)",
-    desc: "Keeps 100% of the original frame — nothing is cropped. Fills empty space with a blurred, stretched extension of the same image/video.",
+    label: "Blur fill",
+    desc: "Keeps 100% of the original frame — nothing is cropped. Fills empty space with a blurred, stretched extension. Fast, always available, no extra setup.",
   },
   {
     id: "crop",
     label: "Smart crop",
     desc: "Crops the edges down to the target shape, centered on the detected subject. Faster to watch, but permanently discards whatever falls outside the crop.",
-  },
-  {
-    id: "ai_extend",
-    label: "AI extend",
-    desc: "Segments the subject and composites it over an extended background. Images only, slower.",
   },
 ];
 

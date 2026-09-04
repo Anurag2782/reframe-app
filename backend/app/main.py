@@ -93,8 +93,8 @@ async def batch_upload(
     target_w: int | None = Form(default=None),
     target_h: int | None = Form(default=None),
 ):
-    if mode not in ("crop", "pad", "ai_extend"):
-        raise HTTPException(status_code=400, detail="mode must be 'crop', 'pad', or 'ai_extend'")
+    if mode not in ("crop", "pad", "ai_extend", "ai_generate"):
+        raise HTTPException(status_code=400, detail="mode must be 'crop', 'pad', 'ai_extend', or 'ai_generate'")
 
     tw, th = _resolve_target_dims(aspect, target_w, target_h)
     batch_id = str(uuid.uuid4())
