@@ -8,22 +8,26 @@ const ASPECTS = [
 const MODES = [
   {
     id: "ai_extend",
-    label: "AI extend (recommended)",
-    desc: "Cuts the subject out, keeps it perfectly sharp, and extends the background by mirroring it outward — no blur. Images: fully subject-aware. Video: background-only extension (per-frame segmentation isn't fast enough yet).",
+    label: "AI extend",
+    tag: "Recommended",
+    desc: "Cuts the subject out, keeps it perfectly sharp, and extends the background by mirroring it outward — no blur. Images: fully subject-aware. Video: background-only extension.",
   },
   {
     id: "ai_generate",
     label: "AI generate",
-    desc: "Uses a generative AI model to paint in genuinely new background detail for the extended area, instead of mirroring or blurring. Images only, much slower, needs optional extra dependencies installed on the backend.",
+    tag: "Slower",
+    desc: "Uses a generative AI model to paint in genuinely new background detail for the extended area, instead of mirroring or blurring. Images only — needs the GPU service configured on the backend.",
   },
   {
     id: "pad",
     label: "Blur fill",
-    desc: "Keeps 100% of the original frame — nothing is cropped. Fills empty space with a blurred, stretched extension. Fast, always available, no extra setup.",
+    tag: "Fast",
+    desc: "Keeps 100% of the original frame — nothing is cropped. Fills empty space with a blurred, stretched extension. Always available, no extra setup.",
   },
   {
     id: "crop",
     label: "Smart crop",
+    tag: "Discards edges",
     desc: "Crops the edges down to the target shape, centered on the detected subject. Faster to watch, but permanently discards whatever falls outside the crop.",
   },
 ];
@@ -50,6 +54,8 @@ function AspectGlyph({ w, h, active }) {
 }
 
 export default function SettingsPanel({ aspect, setAspect, mode, setMode }) {
+  const activeMode = MODES.find((m) => m.id === mode);
+
   return (
     <div className="space-y-6">
       <div>
@@ -82,23 +88,27 @@ export default function SettingsPanel({ aspect, setAspect, mode, setMode }) {
         <h3 className="font-display text-sm uppercase tracking-wide text-mist-500 mb-3">
           Reframe method
         </h3>
-        <div className="space-y-2">
+        <div className="grid grid-cols-2 gap-2">
           {MODES.map((m) => (
             <button
               key={m.id}
               onClick={() => setMode(m.id)}
-              className={`w-full rounded-xl border px-4 py-3 text-left transition-colors
+              className={`rounded-xl border px-3 py-2.5 text-left transition-colors
                 ${
                   mode === m.id
                     ? "border-signal bg-signal/10"
                     : "border-ink-700 bg-ink-800 hover:border-ink-600"
                 }`}
             >
-              <span className="block font-display text-sm text-mist-100">{m.label}</span>
-              <span className="block text-xs text-mist-500 mt-0.5">{m.desc}</span>
+              <span className="block font-display text-sm text-mist-100 leading-tight">{m.label}</span>
+              <span className="block text-[10px] uppercase tracking-wide text-mist-500 mt-0.5">{m.tag}</span>
             </button>
           ))}
         </div>
+
+        {activeMode && (
+          <p className="mt-2 text-xs text-mist-500 leading-relaxed px-1">{activeMode.desc}</p>
+        )}
       </div>
     </div>
   );

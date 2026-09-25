@@ -28,3 +28,27 @@ export async function getBatchStatus(batchId) {
 export function downloadUrl(jobId) {
   return `${API_BASE}/api/download/${jobId}`;
 }
+
+/**
+ * Downloads a job's result via fetch + blob instead of a plain <a href>.
+ * Files are single-use on the server (deleted immediately after the first
+ * successful download), so a stale link needs to surface as a real error
+ * message -- a plain <a> tag would otherwise silently "download" the
+ * server's JSON error body as a corrupt file.
+ */
+export async function downloadJobResult(jobId, filename) {
+  const res = await fetch(downloadUrl(jobId));
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Download failed (${res.status})`);
+  }
+  const blob = await res.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = objectUrl;
+  a.download = filename || "reframed-file";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(objectUrl);
+}
