@@ -2,31 +2,47 @@ import { useEffect, useRef, useState } from "react";
 import { getBatchStatus } from "../lib/api";
 import JobRow from "./JobRow";
 
+const INITIAL_POLL_MS = 2000;
+const MAX_POLL_MS = 30000;
+
 export default function JobQueue({ batchId }) {
   const [jobs, setJobs] = useState([]);
-  const intervalRef = useRef(null);
+  const timeoutRef = useRef(null);
 
   useEffect(() => {
     if (!batchId) return;
 
+    let stopped = false;
+    let pollDelay = INITIAL_POLL_MS;
+
+    const schedulePoll = (delay) => {
+      timeoutRef.current = setTimeout(poll, delay);
+    };
+
     const poll = async () => {
+      if (stopped) return;
       try {
         const data = await getBatchStatus(batchId);
+        if (stopped) return;
         setJobs(data.jobs);
         const stillWorking = data.jobs.some((j) => j.status === "queued" || j.status === "processing");
-        if (!stillWorking && intervalRef.current) {
-          clearInterval(intervalRef.current);
-          intervalRef.current = null;
+        pollDelay = INITIAL_POLL_MS;
+        if (stillWorking) {
+          schedulePoll(pollDelay);
         }
       } catch (e) {
-        console.error(e);
+        if (stopped) return;
+        // Back off on Render throttling or a transient instance restart.
+        const serverRetry = e.retryAfterMs || 0;
+        pollDelay = Math.min(Math.max(pollDelay * 2, 5000), MAX_POLL_MS);
+        schedulePoll(Math.max(serverRetry, pollDelay));
       }
     };
 
     poll();
-    intervalRef.current = setInterval(poll, 1500);
     return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
+      stopped = true;
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
     };
   }, [batchId]);
 

@@ -21,7 +21,15 @@ export async function uploadBatch(files, { aspect, mode, targetW, targetH }) {
 
 export async function getBatchStatus(batchId) {
   const res = await fetch(`${API_BASE}/api/batch/${batchId}`);
-  if (!res.ok) throw new Error(`Failed to fetch batch status (${res.status})`);
+  if (!res.ok) {
+    const error = new Error(`Failed to fetch batch status (${res.status})`);
+    error.status = res.status;
+    const retryAfter = Number(res.headers.get("Retry-After"));
+    if (Number.isFinite(retryAfter) && retryAfter > 0) {
+      error.retryAfterMs = retryAfter * 1000;
+    }
+    throw error;
+  }
   return res.json();
 }
 

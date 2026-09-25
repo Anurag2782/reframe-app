@@ -9,6 +9,7 @@ const ACCEPTED = {
   "video/quicktime": [],
   "video/webm": [],
 };
+const MAX_FILE_SIZE = 500 * 1024 * 1024;
 
 export default function Dropzone({ onFilesSelected }) {
   const [pending, setPending] = useState([]);
@@ -36,6 +37,7 @@ export default function Dropzone({ onFilesSelected }) {
     onDrop,
     accept: ACCEPTED,
     multiple: true,
+    maxSize: MAX_FILE_SIZE,
   });
 
   return (
@@ -50,7 +52,7 @@ export default function Dropzone({ onFilesSelected }) {
           {isDragActive ? "Drop it." : "Drag files here, or click to browse"}
         </p>
         <p className="mt-2 text-sm text-mist-500 font-mono">
-          JPG · PNG · WEBP · MP4 · MOV · WEBM — up to 200MB each
+          JPG · PNG · WEBP · MP4 · MOV · WEBM — up to 500MB each
         </p>
       </div>
 
