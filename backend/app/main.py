@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import asyncio
 import mimetypes
 import os
+import time
 import uuid
 from pathlib import Path
 from typing import List
@@ -9,7 +11,7 @@ from typing import List
 from fastapi import BackgroundTasks, FastAPI, File, HTTPException, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
+from starlette.background import BackgroundTask
 
 from . import jobs
 from .image_processing import reframe_image
@@ -24,6 +26,13 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".mkv", ".webm"}
 MAX_FILE_SIZE_MB = 200
+
+# How long a finished job's file is kept if nobody downloads it. Downloads
+# delete the file immediately regardless of this value -- this is only a
+# safety net for files that are never picked up. Set STORAGE_TTL_MINUTES=0
+# to disable the sweep (not recommended -- abandoned uploads would pile up).
+STORAGE_TTL_MINUTES = int(os.environ.get("STORAGE_TTL_MINUTES", "30"))
+CLEANUP_INTERVAL_SECONDS = 300
 
 ASPECT_PRESETS = {
     "9:16": (1080, 1920),
@@ -43,9 +52,39 @@ app.add_middleware(
 )
 
 
+def _delete_if_exists(path: str | None) -> None:
+    if path and os.path.exists(path):
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+
+
+def _sweep_stale_files() -> None:
+    """Safety net: deletes files for any finished job that's sat around
+    longer than STORAGE_TTL_MINUTES without being downloaded (e.g. the user
+    closed the tab). Normal downloads are already deleted immediately by
+    download_result, so this mostly catches abandoned jobs."""
+    if STORAGE_TTL_MINUTES <= 0:
+        return
+    cutoff = time.time() - STORAGE_TTL_MINUTES * 60
+    for job in jobs.list_stale_jobs(cutoff):
+        _delete_if_exists(job.get("input_path"))
+        _delete_if_exists(job.get("output_path"))
+        if job.get("input_path") or job.get("output_path"):
+            jobs.update_job(job["id"], input_path=None, output_path=None)
+
+
+async def _cleanup_loop() -> None:
+    while True:
+        await asyncio.sleep(CLEANUP_INTERVAL_SECONDS)
+        _sweep_stale_files()
+
+
 @app.on_event("startup")
 def on_startup():
     jobs.init_db()
+    asyncio.create_task(_cleanup_loop())
 
 
 def _media_type_for(filename: str) -> str:
@@ -82,6 +121,13 @@ def _process_job(job_id: str) -> None:
         jobs.update_job(job_id, status="done", output_path=str(output_path))
     except Exception as e:  # noqa: BLE001
         jobs.update_job(job_id, status="failed", error=str(e))
+    finally:
+        # The uploaded source is never needed again once processing finishes
+        # (success or failure) -- delete it right away instead of letting
+        # uploads accumulate on disk. Only the (much smaller, single-use)
+        # output sticks around, and only until it's downloaded.
+        _delete_if_exists(job.get("input_path"))
+        jobs.update_job(job_id, input_path=None)
 
 
 @app.post("/api/batch-upload")
@@ -89,7 +135,7 @@ async def batch_upload(
     background_tasks: BackgroundTasks,
     files: List[UploadFile] = File(...),
     aspect: str | None = Form(default="9:16"),
-    mode: str = Form(default="crop"),  # 'crop' | 'pad' | 'ai_extend'
+    mode: str = Form(default="ai_extend"),  # 'ai_extend' | 'ai_generate' | 'pad' | 'crop'
     target_w: int | None = Form(default=None),
     target_h: int | None = Form(default=None),
 ):
@@ -149,13 +195,29 @@ def download_result(job_id: str):
     job = jobs.get_job(job_id)
     if job is None:
         raise HTTPException(status_code=404, detail="Job not found")
+    if job["status"] == "delivered":
+        raise HTTPException(
+            status_code=410,
+            detail="This file has already been downloaded once and was removed from the "
+                    "server to save space. Convert the file again if you need another copy.",
+        )
     if job["status"] != "done" or not job["output_path"]:
         raise HTTPException(status_code=409, detail=f"Job is not ready (status: {job['status']})")
 
     path = job["output_path"]
     media_type, _ = mimetypes.guess_type(path)
     filename = f"reframed_{job['filename']}"
-    return FileResponse(path, media_type=media_type or "application/octet-stream", filename=filename)
+
+    def _cleanup_after_send():
+        _delete_if_exists(path)
+        jobs.update_job(job_id, status="delivered", output_path=None)
+
+    return FileResponse(
+        path,
+        media_type=media_type or "application/octet-stream",
+        filename=filename,
+        background=BackgroundTask(_cleanup_after_send),
+    )
 
 
 @app.get("/api/health")

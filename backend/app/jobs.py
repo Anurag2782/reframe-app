@@ -91,3 +91,17 @@ def list_jobs_for_batch(batch_id: str) -> list[dict]:
             "SELECT * FROM jobs WHERE batch_id = ? ORDER BY created_at", (batch_id,)
         ).fetchall()
         return [dict(r) for r in rows]
+
+
+def list_stale_jobs(cutoff_timestamp: float) -> list[dict]:
+    """Jobs last touched before cutoff_timestamp that have finished (done,
+    failed, or already delivered) -- used by the periodic storage sweep to
+    find files that should have been cleaned up already (e.g. a result that
+    was never downloaded)."""
+    with _conn() as conn:
+        rows = conn.execute(
+            """SELECT * FROM jobs
+               WHERE updated_at < ? AND status IN ('done', 'failed', 'delivered')""",
+            (cutoff_timestamp,),
+        ).fetchall()
+        return [dict(r) for r in rows]
