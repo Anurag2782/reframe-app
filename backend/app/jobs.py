@@ -10,12 +10,14 @@ seam to do that behind.
 from __future__ import annotations
 
 import sqlite3
+import os
 import time
 import uuid
 from contextlib import contextmanager
 from pathlib import Path
 
-DB_PATH = Path(__file__).resolve().parent.parent / "storage" / "jobs.db"
+DEFAULT_DB_PATH = Path(__file__).resolve().parent.parent / "storage" / "jobs.db"
+DB_PATH = Path(os.environ.get("JOBS_DB_PATH", str(DEFAULT_DB_PATH)))
 
 
 @contextmanager

@@ -18,14 +18,15 @@ from .image_processing import reframe_image
 from .video_processing import reframe_video
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-UPLOAD_DIR = BASE_DIR / "storage" / "uploads"
-OUTPUT_DIR = BASE_DIR / "storage" / "outputs"
+STORAGE_DIR = Path(os.environ.get("STORAGE_DIR", str(BASE_DIR / "storage")))
+UPLOAD_DIR = STORAGE_DIR / "uploads"
+OUTPUT_DIR = STORAGE_DIR / "outputs"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".mkv", ".webm"}
-MAX_FILE_SIZE_MB = 200
+MAX_FILE_SIZE_MB = 500
 
 # How long a finished job's file is kept if nobody downloads it. Downloads
 # delete the file immediately regardless of this value -- this is only a
